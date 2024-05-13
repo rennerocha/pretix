@@ -253,7 +253,7 @@ class WidgetAPIProductList(EventListMixin, View):
             self.request.event,
             subevent=self.subevent,
             voucher=self.voucher,
-            channel=self.request.sales_channel.identifier,
+            channel=self.request.sales_channel,
             base_qs=qs,
             require_seat=None,
             memberships=(
