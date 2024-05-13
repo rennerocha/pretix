@@ -259,6 +259,7 @@ class SubEventItemVariation(models.Model):
 
 
 def filter_available(qs, channel='web', voucher=None, allow_addons=False):
+    assert isinstance(channel, str)
     q = (
         # IMPORTANT: If this is updated, also update the ItemVariation query
         # in models/event.py: EventMixin.annotated()
