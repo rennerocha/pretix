@@ -141,6 +141,18 @@ class ItemCategory(LoggedModel):
         verbose_name_plural = _("Product categories")
         ordering = ('position', 'id')
 
+    def cross_sell_visible(self, cart_positions):
+        if self.cross_selling_mode is None:
+            return False
+        if self.cross_selling_condition == 'always':
+            return True
+        if self.cross_selling_condition == 'products':
+            match = set(match.pk for match in self.cross_selling_match_products.only('pk')) # TODO prefetch this
+            return any(pos.item.pk in match for pos in cart_positions)
+        if self.cross_selling_condition == 'discounts':
+            # TODO not sure how to do this yet
+            return False
+
     def __str__(self):
         name = self.internal_name or self.name
         if self.is_addon:
@@ -284,7 +296,7 @@ class SubEventItemVariation(models.Model):
         return True
 
 
-def filter_available(qs, channel='web', voucher=None, allow_addons=False):
+def filter_available(qs, channel='web', voucher=None, allow_addons=False, allow_cross_sell=False):
     q = (
         # IMPORTANT: If this is updated, also update the ItemVariation query
         # in models/event.py: EventMixin.annotated()
@@ -295,6 +307,8 @@ def filter_available(qs, channel='web', voucher=None, allow_addons=False):
     )
     if not allow_addons:
         q &= Q(Q(category__isnull=True) | Q(category__is_addon=False))
+    if not allow_cross_sell:
+        q &= Q(Q(category__isnull=True) | ~Q(category__cross_selling_mode='only'))
 
     if voucher:
         if voucher.item_id:
@@ -308,8 +322,8 @@ def filter_available(qs, channel='web', voucher=None, allow_addons=False):
 
 
 class ItemQuerySet(models.QuerySet):
-    def filter_available(self, channel='web', voucher=None, allow_addons=False):
-        return filter_available(self, channel, voucher, allow_addons)
+    def filter_available(self, channel='web', voucher=None, allow_addons=False, allow_cross_sell=False):
+        return filter_available(self, channel, voucher, allow_addons, allow_cross_sell)
 
 
 class ItemQuerySetManager(ScopedManager(organizer='event__organizer').__class__):
@@ -317,8 +331,8 @@ class ItemQuerySetManager(ScopedManager(organizer='event__organizer').__class__)
         super().__init__()
         self._queryset_class = ItemQuerySet
 
-    def filter_available(self, channel='web', voucher=None, allow_addons=False):
-        return filter_available(self.get_queryset(), channel, voucher, allow_addons)
+    def filter_available(self, channel='web', voucher=None, allow_addons=False, allow_cross_sell=False):
+        return filter_available(self.get_queryset(), channel, voucher, allow_addons, allow_cross_sell)
 
 
 class Item(LoggedModel):
